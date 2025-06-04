@@ -1,0 +1,8 @@
+*.o
+*.elf
+*.bin
+Debug/
+Release/
+.vs/
+*.user
+*.exe
