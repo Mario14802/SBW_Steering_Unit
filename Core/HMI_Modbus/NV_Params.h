@@ -31,7 +31,7 @@ typedef struct
     float Torque_Signal_offset;
     float Angle_Sensor_Fc; //LPF cutoff frequency
     float  Amplifier_offset;//amplifier offset
-
+    float  Linear_Disp_Gain; //linear displacment sensor gain
 
     uint16_t Checksum; //38,39
 

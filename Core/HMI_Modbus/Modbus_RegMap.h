@@ -20,6 +20,7 @@ typedef struct HoldingRegs
 
     //part 2 is the system states that need to be read/write
     float Motor_I_SP;
+    float Motor_LP_SP;
 }HoldingRegs_t;
 //////////////////////
 typedef struct InputRegs
@@ -32,6 +33,7 @@ typedef struct InputRegs
 
     float Motor_PWM_Out;//6,7
     float Motor_I_Error;//8,9
+    float Motor_D_Error;//10,11
 
     uint16_t ADC_Raw_Values[12];
 }InputRegs_t;
@@ -49,6 +51,7 @@ enum CoilBits // 0 till 15
 	MB_Coil_Enable_PI_Controller,
 	MB_Coil_Update_Params,
 	MB_Coil_Load_Defaults,
+	MB_Coil_Position_Reset
 
 };
 #define GetInputBit(bit) MB_Parse_Bit(MB.InputBits, bit)

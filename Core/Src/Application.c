@@ -3,8 +3,11 @@
 
 // PI controller handle
 PI_Handle_t PI_Handle;
-float  Encoder_Angle=0;
-float LinerDisp;
+float SP=0;
+float PV=0;
+// value from interpolation
+float Encoder_Ang=0;
+float Linear_diplacement=0;
 
 //----------------------------------------------------------------------------//
 //                             CAN-related definitions                        //
@@ -35,7 +38,7 @@ CAN_RxHeaderTypeDef myRX_header;
 uint32_t myTxmailbox;
 uint8_t myTxbuffer[8];
 uint8_t myRxbuffer[8];
-//recieved from feedbac
+//recieved from feedback
 
 int16_t Motor_current=0 ;
 int16_t steering_wheel_angle=0;
@@ -66,7 +69,7 @@ void Application_Init(void)
 	//myTX_header.ExtId = 0;
 	myTX_header.IDE = CAN_ID_STD;
 	myTX_header.RTR = CAN_RTR_DATA;
-	myTX_header.StdId = 0x102;//id of the sender
+	myTX_header.StdId = Sender_ID;//id of the sender
 	myTX_header.TransmitGlobalTime = DISABLE;
 	memset(myTxbuffer, 0, Txsize);
 
@@ -114,39 +117,44 @@ void Application_Init(void)
 //----------------------------------------------------------------------------//
 inline void Application_Run(void)
 {
-	uint32_t Ticks = HAL_GetTick();
+	//uint32_t Ticks = HAL_GetTick();
 	uint32_t PID_Ticks = HAL_GetTick();
 	//
-	HAL_StatusTypeDef S;
+	//HAL_StatusTypeDef S;
 
 	while (1) {
 		// Modbus routine
 		MB_Slave_Routine(&MB, HAL_GetTick());
 
-		LinerDisp =map_linear(M, Encoder_Angle);
+		Encoder_Ang =map_linear(M, (float)steering_wheel_angle);
 
 
 		//ADC VALUES
 		Compute_Analog_Measurements();
 
-		//Motor Current
-		Motor_current =Iregs->I_OUT;
+		//change form 0-200 to -75,75mm
+		Linear_diplacement=	get_linear_position(Iregs->Linear_position);
 
-		//Encoder_angle
-
-		//Steering_wheel_speed ,
-		//PWM_output=0 ;
+		//Sent Data
+		Motor_current = (int16_t)Iregs->I_OUT;
+		rack_position = (int16_t)Linear_diplacement;
+		//rack_Force
 
 
 		// PI control update every 5 ms
-		if (HAL_GetTick() >= PID_Ticks) {
+		uint32_t HAL_Tick = HAL_GetTick();
+		if (HAL_Tick >= PID_Ticks) {
 			if (GetCoil(MB_Coil_Enable_PI_Controller)) {
+
+				SP = (float)Encoder_Ang;
+				PV = Linear_diplacement;
+
 				Iregs->Motor_PWM_Out = PI_Eval(
 						&PI_Handle,
-						Hregs->Motor_I_SP,   // sp is the desired value from the interoplation
-						Iregs->I_OUT         // actual current actual angle
+						Hregs->Motor_LP_SP=SP,    // Sp is the desired value from the interoplation
+						PV      				 //  actual Linear Length
 				);
-				Iregs->Motor_I_Error = PI_Handle.Error;
+				Iregs->Motor_D_Error = PI_Handle.Error;
 
 				if (Iregs->Motor_PWM_Out > 0) {
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
@@ -163,15 +171,12 @@ inline void Application_Run(void)
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
 			}
 			PID_Ticks = HAL_GetTick() + 5;  // qadded 5ms
+
 		}
 
 
 		// Prepare and send CAN message
-		encode_data(myTxbuffer, 0, 11,  motor_current, 1);   // 11-bit signed
-		encode_data(myTxbuffer, 11, 12, rack_position, 1);  // 12-bit signed
-		encode_data(myTxbuffer, 23, 16, rack_force, 1);     // 16-bit signed
-		HAL_CAN_AddTxMessage(&hcan1, &myTX_header, myTxbuffer, &myTxmailbox);
-
+		PrepareCANMessage(myTxbuffer, motor_current, rack_position,rack_force) ;
 
 		if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1)==3) {
 			if (HAL_CAN_AddTxMessage(&hcan1, &myTX_header, myTxbuffer, &myTxmailbox)
@@ -202,12 +207,12 @@ void Compute_Analog_Measurements(void)
 {
 	//calculate the Vbus voltage
 	Iregs->Vbus = ((float) Iregs->ADC_Raw_Values[1] * (DefaultParams.Vmotor_Sense_Gain))
-                														  - (DefaultParams.Vmotor_Sense_Offset);
+                																		  - (DefaultParams.Vmotor_Sense_Offset);
 	Iregs->I_OUT = ((float) Iregs->ADC_Raw_Values[0] * (DefaultParams.I_Sense_Gain)
 			- (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset))
-                														   * 1000.0f;
+                																		   * 1000.0f;
 
-	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7])*(200.0f/4095.0f);//linear  position sensor
+	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7])*DefaultParams.Linear_Disp_Gain;//linear  position sensor
 
 }
 

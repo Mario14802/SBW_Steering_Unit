@@ -18,7 +18,8 @@ const SystemParams_t DefaultParams = {
 		.I_Control_Ki = 0.8,
 		.Controller_Sampling_Time = 1.0f/200.0f,
 		.Checksum = 0,
-		.I_Control_Max_Out = 500};
+		.I_Control_Max_Out = 500,
+		.Linear_Disp_Gain=0.04913485799f};
 
 static uint16_t Compute_Checksum(uint8_t *Data, uint8_t Len) {
 	uint16_t Chk = 0;

@@ -17,6 +17,7 @@
 #include "../Inc/Modbus_EEPROM_SL.h"
 #include "../../Drivers/PI/PI.h"
 #include "../../Drivers/Interpolation/Interpolation.h"
+#include "../../Drivers/Linear_displacment/Linear_displacment.h"
 #include "Steering_CAN.h"
 
 extern ADC_HandleTypeDef hadc1;
@@ -52,9 +53,9 @@ extern mapping_t M;
 
 extern MB_Slave_t MB;
 
-//can
+//CAN
 #define Txsize 8
-
+#define Sender_ID 0x102
 void Application_Init();
 
 void Application_Run();

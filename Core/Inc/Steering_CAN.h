@@ -20,8 +20,6 @@ void encode_data(uint8_t* buffer, uint8_t bit_start, uint8_t length, int16_t val
 uint16_t decode_data(uint8_t *rxdata, uint8_t start_bit,/* float offset*/uint8_t length, uint8_t IsSigned);
 
 
-void PrepareCANMessage(uint8_t *txdata, int16_t motor_current,
-		int16_t steering_wheel_angle, int16_t steering_wheel_speed,
-		int16_t PWM_output);
+void PrepareCANMessage(uint8_t *txdata, int16_t motor_current,int16_t rack_position, int16_t rack_force) ;
 
 #endif /* INC_STEERING_CAN_H_ */
