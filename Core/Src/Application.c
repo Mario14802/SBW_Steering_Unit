@@ -1,110 +1,190 @@
 #include "Application.h"
 #include <math.h>
 
-//TIM_HandleTypeDef *Motor_Timer = htim5;
+// PI controller handle
 PI_Handle_t PI_Handle;
+float  Encoder_Angle=0;
+float LinerDisp;
 
-extern TIM_HandleTypeDef htim6;
+//----------------------------------------------------------------------------//
+//                             CAN-related definitions                        //
+//----------------------------------------------------------------------------//
 
-static void Config_CAN_Filters() {
-	CAN_FilterTypeDef filter = { .FilterActivation = CAN_FILTER_ENABLE,
-			.FilterBank = 10, .FilterFIFOAssignment = CAN_RX_FIFO0,
-			.FilterIdHigh = 0x0000, .FilterIdLow = 0x0000,
-			.FilterMaskIdHigh = 0, .FilterMaskIdLow = 0x0000, .FilterMode =
-			CAN_FILTERMODE_IDMASK, .FilterScale =
-			CAN_FILTERSCALE_32BIT, };
+static void Config_CAN_Filters(void)
+{
+	const CAN_FilterTypeDef filter = {
+			.FilterActivation      = CAN_FILTER_ENABLE,
+			.FilterBank            = 10,
+			.FilterFIFOAssignment  = CAN_RX_FIFO0,
+			.FilterIdHigh          = 0x0000,
+			.FilterIdLow           = 0x0000,
+			.FilterMaskIdHigh      = 0x0000,
+			.FilterMaskIdLow       = 0x0000,
+			.FilterMode            = CAN_FILTERMODE_IDMASK,
+			.FilterScale           = CAN_FILTERSCALE_32BIT,
+	};
+
 	HAL_CAN_ConfigFilter(&hcan1, &filter);
-
 }
 
-CAN_RxHeaderTypeDef RX_Header;
-uint8_t CAN_RxData[8];
-uint8_t TxData[TX_SIZE] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-CAN_TxHeaderTypeDef TxHeader;
-uint32_t TxMailbox = 0;
-int16_t V1 = 0, V2 = 0, V3 = 0, V4 = 0;
+//----------------------------------------------------------------------------//
+//                           Global Variable Declarations                      //
+//----------------------------------------------------------------------------//
+CAN_TxHeaderTypeDef myTX_header;
+CAN_RxHeaderTypeDef myRX_header;
+uint32_t myTxmailbox;
+uint8_t myTxbuffer[8];
+uint8_t myRxbuffer[8];
+//recieved from feedbac
 
-uint32_t Tmp = 0;
+int16_t Motor_current=0 ;
+int16_t steering_wheel_angle=0;
+int16_t Steering_wheel_speed=0;
+int16_t PWM_output=0
+		;
+//sent to feedback
+int16_t motor_current=0;
+int16_t rack_position=0;
+int16_t rack_force=0;
+//int16_t PWM_Stee;
 
-int16_t motor_current;
-int16_t Rack_position;
-int16_t Rack_force;
+//----------------------------------------------------------------------------//
+//                             Application Initialization                     //
+//----------------------------------------------------------------------------//
+void Application_Init(void)
+{
+	//-------------- Modbus initialization --------------//
+	MB_Init_UART1(&huart1, 0x1);
 
-void Application_Init() {
-	//CAN init
+	//-------------- CAN initialization --------------//
+
 	HAL_CAN_Start(&hcan1);
 	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 	Config_CAN_Filters();
-	TxHeader.StdId = 0x101;  // Example standard ID  ********
-	TxHeader.ExtId = 0x01;
-	TxHeader.IDE = CAN_ID_STD;
-	TxHeader.RTR = CAN_RTR_DATA;
-	TxHeader.DLC = 8;  // 8-byte message
-	//modbus init
-	MB_Init_UART1(&huart1, SLA);
+
+	myTX_header.DLC = 8;
+	//myTX_header.ExtId = 0;
+	myTX_header.IDE = CAN_ID_STD;
+	myTX_header.RTR = CAN_RTR_DATA;
+	myTX_header.StdId = 0x102;//id of the sender
+	myTX_header.TransmitGlobalTime = DISABLE;
+	memset(myTxbuffer, 0, Txsize);
+
+
+	//-------------- Motor timer (TIM8) initialization --------------//
 	HAL_TIM_Base_Start(&htim8);
 	Motor_Init(&htim8, TIM_CHANNEL_1);
 	Motor_Init(&htim8, TIM_CHANNEL_2);
+
+	//-------------- ADC trigger via TIM5 / DMA --------------//
 	//HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
 	HAL_TIM_Base_Start(&htim5);
 	HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2); //that triggers the ADC conversion
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) Iregs->ADC_Raw_Values, 9);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) Iregs->ADC_Raw_Values, 9);
 
+	//LOAD default
 	if (!Load_NV_Data()) {
 		Load_Default_NV_Data();
 	}
 
-	PI_Init(&PI_Handle, MaxOut, DefaultParams.I_Control_Kp,
-			DefaultParams.I_Control_Ki, KC,
-			DefaultParams.Controller_Sampling_Time);
+	//-------------- PI controller initialization --------------//
+	PI_Init(
+			&PI_Handle,
+			MaxOut,
+			DefaultParams.I_Control_Kp,
+			DefaultParams.I_Control_Ki,
+			KC,
+			DefaultParams.Controller_Sampling_Time
+	);
 	HAL_TIM_Base_Start_IT(&htim6); //to call the pi evaluat fun every 5 ms
 
+
+
+	//--------------Interpolation initialization --------------//
+	/*	//ENCODER VALUES
+	M->output_max = 75.0f;
+	M->output_min = -75.0f;
+	//LINEAR VALUES
+	M->input_max = 180.0f;
+	M->input_min = -180.0f;*/
 }
 
-inline void Application_Run() {
+//----------------------------------------------------------------------------//
+//                             Main Application Loop                          //
+//----------------------------------------------------------------------------//
+inline void Application_Run(void)
+{
 	uint32_t Ticks = HAL_GetTick();
 	uint32_t PID_Ticks = HAL_GetTick();
+	//
 	HAL_StatusTypeDef S;
+
 	while (1) {
-		//Modbus routine
+		// Modbus routine
 		MB_Slave_Routine(&MB, HAL_GetTick());
 
-		PrepareCANMessage(TxData, V1, V2, V3, V4);
-		if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) == 3) {
-			if (HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox)
-					!= HAL_OK) {
-				Error_Handler();  // Handle error if sending fails
-			}
-		}
-		HAL_Delay(100);
+		LinerDisp =map_linear(M, Encoder_Angle);
 
-		if (HAL_GetTick() > PID_Ticks) {
+
+		//ADC VALUES
+		Compute_Analog_Measurements();
+
+		//Motor Current
+		Motor_current =Iregs->I_OUT;
+
+		//Encoder_angle
+
+		//Steering_wheel_speed ,
+		//PWM_output=0 ;
+
+
+		// PI control update every 5 ms
+		if (HAL_GetTick() >= PID_Ticks) {
 			if (GetCoil(MB_Coil_Enable_PI_Controller)) {
-				Iregs->Motor_PWM_Out = PI_Eval(&PI_Handle, Hregs->Motor_I_SP, //sp is the desired value
-						Iregs->I_OUT); //  PI_Eval called here every 5ms
+				Iregs->Motor_PWM_Out = PI_Eval(
+						&PI_Handle,
+						Hregs->Motor_I_SP,   // sp is the desired value from the interoplation
+						Iregs->I_OUT         // actual current actual angle
+				);
 				Iregs->Motor_I_Error = PI_Handle.Error;
+
 				if (Iregs->Motor_PWM_Out > 0) {
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
-					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1,
-							(uint16_t )Iregs->Motor_PWM_Out);
-
+					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint16_t) Iregs->Motor_PWM_Out);
 				} else {
 					Iregs->Motor_PWM_Out = fabsf(Iregs->Motor_PWM_Out);
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
 					//__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2,
-					//		(uint16_t )PI_Control_Duty);
+					//        (uint16_t )PI_Control_Duty);
 					//__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, (uint16_t )Iregs->Motor_PWM_Out);
 				}
 			} else {
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
 			}
-			PID_Ticks = HAL_GetTick() + 5;					//added 5ms
+			PID_Ticks = HAL_GetTick() + 5;  // qadded 5ms
 		}
 
+
+		// Prepare and send CAN message
+		encode_data(myTxbuffer, 0, 11,  motor_current, 1);   // 11-bit signed
+		encode_data(myTxbuffer, 11, 12, rack_position, 1);  // 12-bit signed
+		encode_data(myTxbuffer, 23, 16, rack_force, 1);     // 16-bit signed
+		HAL_CAN_AddTxMessage(&hcan1, &myTX_header, myTxbuffer, &myTxmailbox);
+
+
+		if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1)==3) {
+			if (HAL_CAN_AddTxMessage(&hcan1, &myTX_header, myTxbuffer, &myTxmailbox)
+					!= HAL_OK) {
+				Error_Handler();  // Handle error if sending fails
+			}
+		}
+		HAL_Delay(100);
+
+
 		if (GetCoil(MB_Coil_Update_Params)) {
-			PI_Handle.KP = Hregs->sParams.I_Control_Kp;
-			PI_Handle.KI = Hregs->sParams.I_Control_Ki;
+			PI_Handle.KP     = Hregs->sParams.I_Control_Kp;
+			PI_Handle.KI     = Hregs->sParams.I_Control_Ki;
 			PI_Handle.OutMax = Hregs->sParams.I_Control_Max_Out;
 			SetCoil(MB_Coil_Update_Params, 0);
 		}
@@ -112,46 +192,46 @@ inline void Application_Run() {
 			Load_Default_NV_Data();
 			SetCoil(MB_Coil_Load_Defaults, 0);
 		}
-
 	}
 }
 
-void Compute_Analog_Measurements() {
+//----------------------------------------------------------------------------//
+//                          ADC Measurement Computation                       //
+//----------------------------------------------------------------------------//
+void Compute_Analog_Measurements(void)
+{
 	//calculate the Vbus voltage
-	Iregs->Vbus = ((float) Iregs->ADC_Raw_Values[1]
-			* (DefaultParams.Vmotor_Sense_Gain))
-			- (DefaultParams.Vmotor_Sense_Offset);
-	Iregs->I_OUT = ((float) Iregs->ADC_Raw_Values[0]
-			* (DefaultParams.I_Sense_Gain)
+	Iregs->Vbus = ((float) Iregs->ADC_Raw_Values[1] * (DefaultParams.Vmotor_Sense_Gain))
+                														  - (DefaultParams.Vmotor_Sense_Offset);
+	Iregs->I_OUT = ((float) Iregs->ADC_Raw_Values[0] * (DefaultParams.I_Sense_Gain)
 			- (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset))
-			* 1000.0f;
+                														   * 1000.0f;
+
+	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7])*(200.0f/4095.0f);//linear  position sensor
 
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	// Currently empty—add logic here if needed.
 }
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan1) {
-	CAN_RxHeaderTypeDef RxHeader;
-	uint8_t RxData[8];
-	char uartBuffer[200];
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+	CAN_RxHeaderTypeDef myRX_header;
+	uint8_t myRxbuffer[8];
+	// Decode based on your DBC layout
+	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &myRX_header, myRxbuffer) == HAL_OK) {
+		// Only process if message ID is 0x101 (Standard ID)
+		if (myRX_header.StdId == 0x101/* && myRX_header.IDE == CAN_ID_STD*/) {
 
-	if (HAL_CAN_GetRxMessage(hcan1, CAN_RX_FIFO0, &RxHeader, RxData)
-			== HAL_OK) {
+			Motor_current    = decode_data(myRxbuffer, 0, 13, 1);
+			steering_wheel_angle = decode_data(myRxbuffer, 13, 12, 1);
+			Steering_wheel_speed = decode_data(myRxbuffer, 25, 14, 1);
+			PWM_output            = decode_data(myRxbuffer, 39, 15, 1);  // Fixed: now using next 16 bits after speed
 
-		motor_current = Decode(RxData, 0, 11, 1);
-		Rack_position = Decode(RxData, 12, 12, 1);
-		Rack_force = Decode(RxData, 23, 16, 1);
-		//int16_t pwm = Decode(RxData, 33, 1, 12, 1);
-
-		sprintf(uartBuffer,
-				"Received: motor_current=%d, Rack_position=%d, Rack_force=%d\n ",
-				motor_current, Rack_position, Rack_force);
+			// TODO: Use or store the values as needed
+		}
 	} else {
-		sprintf(uartBuffer, "Error receiving message!\n");
+		// Optional: Add error handling if needed
 	}
-	HAL_UART_Transmit(&huart1, (uint8_t*) uartBuffer, strlen(uartBuffer), 200);
-	//CDC_Transmit_FS((uint8_t*) uartBuffer, strlen(uartBuffer));
 }
-

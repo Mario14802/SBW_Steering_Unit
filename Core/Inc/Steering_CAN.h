@@ -15,11 +15,10 @@
 
 #define TX_SIZE 8
 
-void Encode(uint8_t *txdata, uint8_t start_bit, uint8_t length, uint16_t value,
-		uint8_t IsSigned);
+void encode_data(uint8_t* buffer, uint8_t bit_start, uint8_t length, int16_t value, uint8_t is_signed);
 
-uint16_t Decode(uint8_t *rxdata, uint8_t start_bit, uint8_t length,
-		uint8_t IsSigned);
+uint16_t decode_data(uint8_t *rxdata, uint8_t start_bit,/* float offset*/uint8_t length, uint8_t IsSigned);
+
 
 void PrepareCANMessage(uint8_t *txdata, int16_t motor_current,
 		int16_t steering_wheel_angle, int16_t steering_wheel_speed,
