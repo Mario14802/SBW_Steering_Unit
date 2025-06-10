@@ -1,10 +1,12 @@
-#include "Application.h"
+ #include "Application.h"
 #include <math.h>
 
 // PI controller handle
 PI_Handle_t PI_Handle;
 float SP=0;
 float PV=0;
+uint8_t t=0;
+float PWM_Out;
 // value from interpolation
 float Encoder_Ang=0;
 float Linear_diplacement=0;
@@ -125,8 +127,8 @@ inline void Application_Run(void)
 	while (1) {
 		// Modbus routine
 		MB_Slave_Routine(&MB, HAL_GetTick());
-
 		Encoder_Ang =map_linear(M, (float)steering_wheel_angle);
+
 
 
 		//ADC VALUES
@@ -142,29 +144,32 @@ inline void Application_Run(void)
 
 
 		// PI control update every 5 ms
+		t=1;
 		uint32_t HAL_Tick = HAL_GetTick();
 		if (HAL_Tick >= PID_Ticks) {
-			if (GetCoil(MB_Coil_Enable_PI_Controller)) {
+			if (t==1) {
 
 				SP = (float)Encoder_Ang;
 				PV = Linear_diplacement;
 
-				Iregs->Motor_PWM_Out = PI_Eval(
+		PWM_Out = PI_Eval(
 						&PI_Handle,
-						Hregs->Motor_LP_SP=SP,    // Sp is the desired value from the interoplation
+						Iregs->Motor_LP_SP=SP,    // Sp is the desired value from the interoplation
 						PV      				 //  actual Linear Length
 				);
+
+				Iregs->Motor_PWM_Out = PWM_Out;
 				Iregs->Motor_D_Error = PI_Handle.Error;
 
-				if (Iregs->Motor_PWM_Out > 0) {
+				if (PWM_Out > 0) {
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
-					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint16_t) Iregs->Motor_PWM_Out);
+					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint16_t) PWM_Out);
 				} else {
-					Iregs->Motor_PWM_Out = fabsf(Iregs->Motor_PWM_Out);
+					PWM_Out = fabsf(PWM_Out);
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
 					//__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2,
 					//        (uint16_t )PI_Control_Duty);
-					//__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, (uint16_t )Iregs->Motor_PWM_Out);
+					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, (uint16_t )PWM_Out);
 				}
 			} else {
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
