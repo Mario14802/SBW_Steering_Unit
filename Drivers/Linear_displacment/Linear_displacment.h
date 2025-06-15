@@ -8,10 +8,11 @@
 #ifndef LINEAR_DISPLACMENT_LINEAR_DISPLACMENT_H_
 #define LINEAR_DISPLACMENT_LINEAR_DISPLACMENT_H_
 
+//Distance from center 28.13
 
-// Raw count limits from the HTC200
-#define COUNT_MIN          0
-#define COUNT_MAX        200
+// Raw count limits from the KTC200
+#define COUNT_MIN        11.717
+#define COUNT_MAX        183.685
 
 // Desired physical range
 #define POS_MIN         -75.0f
