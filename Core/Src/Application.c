@@ -3,13 +3,13 @@
 
 // PI controller handle
 PI_Handle_t PI_Handle;
-float SP=0;
-float PV=0;
+float SP;
+float PV;
 uint8_t t=0;
 float PWM_Out;
 // value from interpolation
-float Encoder_Ang=0;
-float Linear_diplacement=0;
+float Encoder_Ang;
+float Linear_diplacement;
 
 //----------------------------------------------------------------------------//
 //                             CAN-related definitions                        //
@@ -40,7 +40,7 @@ CAN_RxHeaderTypeDef myRX_header;
 uint32_t myTxmailbox;
 uint8_t myTxbuffer[8];
 uint8_t myRxbuffer[8];
-//recieved from feedback
+//received from feedback
 
 int16_t Motor_current=0 ;
 int16_t steering_wheel_angle=0;
@@ -151,10 +151,11 @@ inline void Application_Run(void)
 
 				SP = (float)Encoder_Ang;
 				PV = Linear_diplacement;
+				Iregs->Motor_LP_SP=SP;
 
 		PWM_Out = PI_Eval(
 						&PI_Handle,
-						Iregs->Motor_LP_SP=SP,    // Sp is the desired value from the interoplation
+						SP,    // Sp is the desired value from the interoplation
 						PV      				 //  actual Linear Length
 				);
 
@@ -164,14 +165,16 @@ inline void Application_Run(void)
 				if (PWM_Out > 0) {
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint16_t) PWM_Out);
-				} else {
+				}
+				else {
+
 					PWM_Out = fabsf(PWM_Out);
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
-					//__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2,
-					//        (uint16_t )PI_Control_Duty);
 					__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, (uint16_t )PWM_Out);
 				}
-			} else {
+
+			}
+			else {
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
 				__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, 0);
 			}
@@ -217,7 +220,7 @@ void Compute_Analog_Measurements(void)
 			- (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset))
                 																		   * 1000.0f;
 
-	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7])*DefaultParams.Linear_Disp_Gain;//linear  position sensor
+	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7])*(200.0f/4095.0f);//linear  position sensor
 
 }
 
