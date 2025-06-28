@@ -11,12 +11,12 @@
 //Distance from center 28.13
 
 // Raw count limits from the KTC200
-#define COUNT_MIN        13.4
-#define COUNT_MAX        184.1
+#define COUNT_MIN        464
+#define COUNT_MAX        3910
 
 // Desired physical range
-#define POS_MIN         -59.0f
-#define POS_MAX         +59.0f
+#define POS_MIN         -74.0f
+#define POS_MAX         +74.0f
 
 float get_linear_position(float sensor_count);
 

@@ -22,8 +22,8 @@
 mapping_t M =
 		{
 				//ENCODER VALUES
-				.output_max = 59.0f,
-				.output_min = -59.0f,
+				.output_max = 74.0f,
+				.output_min = -74.0f,
 				//LINEAR VALUES
 				.input_max = 180.0f,
 				.input_min = -180.0f,
