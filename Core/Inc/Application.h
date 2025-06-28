@@ -46,7 +46,7 @@ extern PI_Handle_t PI_Handle;
 extern mapping_t M;
 
 #define KC 0.9
-#define MaxOut 500 //Maximum allowed output (saturation limit)
+#define MaxOut 100 //Maximum allowed output (saturation limit)
 
 //modbus slave addreese
 #define SLA 0x1
