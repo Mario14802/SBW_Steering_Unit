@@ -31,7 +31,9 @@
 #include "usbd_cdc.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "../../Drivers/Modbus_RTU_C/Modbus_MISC.h"
+#include "../../Drivers/Modbus_RTU_C/Modbus_Slave.h"
+#include "../../core/USB_Modbus/USB_Modbus.h"
 /* USER CODE END INCLUDE */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -94,7 +96,7 @@
 extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
-
+extern MB_Slave_t USB_MB;
 /* USER CODE END EXPORTED_VARIABLES */
 
 /**

@@ -9,6 +9,12 @@ float PWM_Out;
 // value from interpolation
 float Encoder_Ang;
 float Linear_diplacement;
+
+MB_Status_t Modbus_CallBack(void *context) {
+    MB_Slave_t *mb = (MB_Slave_t *)context;
+    // ... service your request, fill mb->Response[], set ResponseLength ...
+    return MB_STAT_OK;
+}
 //----------------------------------------------------------------------------//
 //                             CAN-related definitions                        //
 //----------------------------------------------------------------------------//
@@ -50,6 +56,20 @@ int16_t rack_force = 0;
 void Application_Init(void) {
 	//-------------- Modbus initialization --------------//
 	MB_Init_UART1(&huart1, 0x1);
+	MB_Init_USB_MODBUS(&hUsbDeviceFS,0x2);
+
+	MB.hw_interface.MB_Request_Recieved=&Modbus_CallBack;
+		USB_MB.hw_interface.MB_Request_Recieved=&Modbus_CallBack;
+
+		free(USB_MB.HoldingRegs);
+		free(USB_MB.InputRegs);
+		free(USB_MB.InputBits);
+		free(USB_MB.CoilBits);
+
+		USB_MB.HoldingRegs=MB.HoldingRegs;
+		USB_MB.InputRegs=MB.InputRegs;
+		USB_MB.InputBits=MB.InputBits;
+		USB_MB.CoilBits=MB.CoilBits;
 
 	//-------------- CAN initialization --------------//
 
@@ -108,6 +128,9 @@ inline void Application_Run(void) {
 	while (1) {
 		// Modbus routine
 		MB_Slave_Routine(&MB, HAL_GetTick());
+
+		MB_Slave_Routine(&USB_MB, HAL_GetTick());
+
 		Encoder_Ang = map_linear(M, (float) steering_wheel_angle);
 
 		//ADC VALUES
@@ -122,10 +145,10 @@ inline void Application_Run(void) {
 		//rack_Force
 
 		// PI control update every 5 ms
-		t=1;
+
 		uint32_t HAL_Tick = HAL_GetTick();
 		if (HAL_Tick >= PID_Ticks) {
-			if (t) {
+			if (GetCoil(MB_Coil_Enable_PI_Controller)) {
 
 				SP = (float) Encoder_Ang;
 				PV = Linear_diplacement;
@@ -171,7 +194,7 @@ inline void Application_Run(void) {
 		if (GetCoil(MB_Coil_Update_Params)) {
 			PI_Handle.KP = Hregs->sParams.I_Control_Kp;
 			PI_Handle.KI = Hregs->sParams.I_Control_Ki;
-			SetCoil(MB_Coil_Update_Params, 0);
+			//SetCoil(MB_Coil_Update_Params, 0);
 		}
 
 		if (GetCoil(MB_Coil_Update_MAXOUT)) {
@@ -202,7 +225,7 @@ void Compute_Analog_Measurements(void) {
 	Iregs->I_OUT = ((float) Iregs->ADC_Raw_Values[0]
 			* (DefaultParams.I_Sense_Gain)
 			- (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset))
-			* 1000.0f;
+			* 10.0f;
 
 	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7]); //*(200.0f/4095.0f);//linear  position sensor
 
