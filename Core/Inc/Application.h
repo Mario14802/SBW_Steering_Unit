@@ -19,6 +19,8 @@
 #include "../../Drivers/Interpolation/Interpolation.h"
 #include "../../Drivers/Linear_displacment/Linear_displacment.h"
 #include "Steering_CAN.h"
+#include "../USB_Modbus/USB_Modbus.h"
+#include "../App/usbd_cdc_if.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern CAN_FilterTypeDef canFilterConfig;
@@ -38,6 +40,8 @@ extern UART_HandleTypeDef huart1;
 
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
+extern USBD_CDC_HandleTypeDef hUsbDeviceFS;
+
 extern const SystemParams_t DefaultParams;
 
 extern PI_Handle_t PI_Handle;
@@ -49,6 +53,7 @@ extern mapping_t M;
 #define SLA 0x1
 
 extern MB_Slave_t MB;
+extern MB_Slave_t USB_MB;
 
 //CAN
 #define Txsize 8
