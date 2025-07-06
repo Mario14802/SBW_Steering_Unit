@@ -30,12 +30,18 @@ typedef struct InputRegs
 
     float I_OUT;//0,1
     float Vbus;//2,3
-    float Linear_position;//4,5
+    float Linear_position_actual;//4 5
 
     float Motor_PWM_Out;//6,7
+
     float Motor_I_Error;//8,9
+
     float Motor_D_Error;//10,11
+
     float Motor_LP_SP;//12,13
+
+    float Linear_position;//4,5
+
 
     uint16_t ADC_Raw_Values[12];
 }InputRegs_t;
@@ -56,6 +62,7 @@ enum CoilBits // 0 till 15
 	MB_Coil_Position_Reset,
 	MB_Coil_Update_MAXOUT,
 	MB_Coil_Update_KC,
+
 };
 #define GetInputBit(bit) MB_Parse_Bit(MB.InputBits, bit)
 #define SetInputBit(bit, State) MB_Encode_Bit(MB.InputBits, bit, State)

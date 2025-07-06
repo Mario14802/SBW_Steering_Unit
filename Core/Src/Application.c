@@ -11,9 +11,9 @@ float Encoder_Ang;
 float Linear_diplacement;
 
 MB_Status_t Modbus_CallBack(void *context) {
-    MB_Slave_t *mb = (MB_Slave_t *)context;
-    // ... service your request, fill mb->Response[], set ResponseLength ...
-    return MB_STAT_OK;
+	MB_Slave_t *mb = (MB_Slave_t *)context;
+	// ... service your request, fill mb->Response[], set ResponseLength ...
+	return MB_STAT_OK;
 }
 //----------------------------------------------------------------------------//
 //                             CAN-related definitions                        //
@@ -24,8 +24,8 @@ static void Config_CAN_Filters(void) {
 			.FilterBank = 10, .FilterFIFOAssignment = CAN_RX_FIFO0,
 			.FilterIdHigh = 0x0000, .FilterIdLow = 0x0000, .FilterMaskIdHigh =
 					0x0000, .FilterMaskIdLow = 0x0000, .FilterMode =
-					CAN_FILTERMODE_IDMASK, .FilterScale =
-			CAN_FILTERSCALE_32BIT, };
+							CAN_FILTERMODE_IDMASK, .FilterScale =
+									CAN_FILTERSCALE_32BIT, };
 
 	HAL_CAN_ConfigFilter(&hcan1, &filter);
 }
@@ -59,17 +59,17 @@ void Application_Init(void) {
 	MB_Init_USB_MODBUS(&hUsbDeviceFS,0x2);
 
 	MB.hw_interface.MB_Request_Recieved=&Modbus_CallBack;
-		USB_MB.hw_interface.MB_Request_Recieved=&Modbus_CallBack;
+	USB_MB.hw_interface.MB_Request_Recieved=&Modbus_CallBack;
 
-		free(USB_MB.HoldingRegs);
-		free(USB_MB.InputRegs);
-		free(USB_MB.InputBits);
-		free(USB_MB.CoilBits);
+	free(USB_MB.HoldingRegs);
+	free(USB_MB.InputRegs);
+	free(USB_MB.InputBits);
+	free(USB_MB.CoilBits);
 
-		USB_MB.HoldingRegs=MB.HoldingRegs;
-		USB_MB.InputRegs=MB.InputRegs;
-		USB_MB.InputBits=MB.InputBits;
-		USB_MB.CoilBits=MB.CoilBits;
+	USB_MB.HoldingRegs=MB.HoldingRegs;
+	USB_MB.InputRegs=MB.InputRegs;
+	USB_MB.InputBits=MB.InputBits;
+	USB_MB.CoilBits=MB.CoilBits;
 
 	//-------------- CAN initialization --------------//
 
@@ -139,24 +139,30 @@ inline void Application_Run(void) {
 		//change form 0-200 to -75,75mm
 		Linear_diplacement = get_linear_position(Iregs->Linear_position);
 
+		Iregs->Linear_position_actual=Linear_diplacement;
+
 		//Sent Data
 		Motor_current = (int16_t) Iregs->I_OUT;
 		rack_position = (int16_t) Linear_diplacement;
 		//rack_Force
 
+
+
 		// PI control update every 5 ms
 
 		uint32_t HAL_Tick = HAL_GetTick();
 		if (HAL_Tick >= PID_Ticks) {
-			if (GetCoil(MB_Coil_Enable_PI_Controller)) {
+			if (GetCoil(MB_Coil_Enable_PI_Controller))
+			{
 
 				SP = (float) Encoder_Ang;
 				PV = Linear_diplacement;
+
 				Iregs->Motor_LP_SP = SP;
 
 				PWM_Out = PI_Eval(&PI_Handle, SP, // Sp is the desired value from the interoplation
 						PV      				 //  actual Linear Length
-						);
+				);
 
 				Iregs->Motor_PWM_Out = PWM_Out;
 				Iregs->Motor_D_Error = PI_Handle.Error;
@@ -197,6 +203,7 @@ inline void Application_Run(void) {
 			//SetCoil(MB_Coil_Update_Params, 0);
 		}
 
+
 		if (GetCoil(MB_Coil_Update_MAXOUT)) {
 			PI_Handle.OutMax = Hregs->sParams.Control_Max_Out;
 			SetCoil(MB_Coil_Update_MAXOUT, 0);
@@ -220,12 +227,12 @@ inline void Application_Run(void) {
 void Compute_Analog_Measurements(void) {
 	//calculate the Vbus voltage
 	Iregs->Vbus = ((float) Iregs->ADC_Raw_Values[1]
-			* (DefaultParams.Vmotor_Sense_Gain))
-			- (DefaultParams.Vmotor_Sense_Offset);
+												 * (DefaultParams.Vmotor_Sense_Gain))
+					- (DefaultParams.Vmotor_Sense_Offset);
 	Iregs->I_OUT = ((float) Iregs->ADC_Raw_Values[0]
-			* (DefaultParams.I_Sense_Gain)
-			- (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset))
-			* 10.0f;
+												  * (DefaultParams.I_Sense_Gain)
+												  - (DefaultParams.I_Sense_Offset + DefaultParams.Amplifier_offset));
+
 
 	Iregs->Linear_position = ((float) Iregs->ADC_Raw_Values[7]); //*(200.0f/4095.0f);//linear  position sensor
 
